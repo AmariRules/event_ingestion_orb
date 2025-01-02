@@ -155,7 +155,7 @@ def ingest_csv_to_orb(file_path):
 
 if __name__ == "__main__":
     # Specify the path to your CSV file
-    csv_file_path = "Orb_sample_data.csv"  # Replace with your file path
+    csv_file_path = "Orb_sample_data.csv"
 
     # Run the ingestion function
     ingest_csv_to_orb(csv_file_path)
