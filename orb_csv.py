@@ -19,41 +19,57 @@ def create_backfill(orb_client, events):
         str: The backfill ID.
     """
     try:
+        if not events:
+            print("No events to backfill.")
+            return None
+
         timeframe_start = min(event["timestamp"] for event in events)
         timeframe_end = (datetime.fromisoformat(timeframe_start.replace("Z", "")) + timedelta(days=9)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         print(f"Creating backfill with timeframe_start: {timeframe_start}, timeframe_end: {timeframe_end}")
+        print(f"Number of events: {len(events)}")
 
         backfill = orb_client.events.backfills.create(
             timeframe_start=timeframe_start,
             timeframe_end=timeframe_end,
-            close_time=None,
+            close_time=None,  # Optional close_time parameter
             replace_existing_events=True
         )
         backfill_id = backfill.id
         print(f"Backfill created successfully with ID: {backfill_id}")
+
+        # Log event ingestion details
+        for event in events:
+            print(f"Ingesting event: {event}")
+
         return backfill_id
     except Exception as e:
         print(f"Error creating backfill: {e}")
         return None
 
-def create_or_get_customer(orb_client, customer_data):
+
+def create_or_get_customer(orb_client, customer_data, customer_cache):
     """
     Create or fetch a customer in Orb and return the customer ID.
 
     Parameters:
         orb_client (Orb): The Orb client instance.
         customer_data (dict): A dictionary containing customer attributes.
+        customer_cache (dict): Cache of created customers to avoid duplicates.
 
     Returns:
         str: The customer ID.
     """
+    account_id = customer_data["account_id"]
+    if account_id in customer_cache:
+        return customer_cache[account_id]
+
     try:
-        print(f"Creating customer with data: {customer_data}")
         customer = orb_client.customers.create(
             email=customer_data.get("email", f"{customer_data['account_id']}@example.com"),
             name=customer_data.get("name", f"Customer {customer_data['account_id']}"),
         )
+        customer_cache[account_id] = customer.id
         print(f"Customer created with ID: {customer.id}")
         return customer.id
     except Exception as e:
@@ -89,6 +105,7 @@ def ingest_csv_to_orb(file_path):
         # Convert month column to ISO 8601 format
         data["iso_timestamp"] = pd.to_datetime(data["month"], format="%m-%Y", errors='coerce').dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+        customer_cache = {}
         events = []
         for index, row in data.iterrows():
             try:
@@ -98,6 +115,7 @@ def ingest_csv_to_orb(file_path):
                     customer_id = create_or_get_customer(
                         orb_client,
                         {"account_id": row["account_id"], "email": f"{row['account_id']}@example.com"},
+                        customer_cache
                     )
                     if not customer_id:
                         print(f"Skipping event {index + 1}: Unable to create customer.")
@@ -125,15 +143,15 @@ def ingest_csv_to_orb(file_path):
                 print(f"Error preparing event {index + 1}: {e}")
 
         if events:
-            # Validate event structure
             print(f"Prepared events: {events[:5]}")  # Log the first 5 events for debugging
-
-            # Create a backfill for historical events
             backfill_id = create_backfill(orb_client, events)
             if backfill_id:
                 print(f"Backfill created with ID: {backfill_id}")
             else:
                 print("Failed to create backfill.")
+        else:
+            print("No events were prepared for ingestion.")
+
 
     except FileNotFoundError:
         print(f"Error: The file at {file_path} was not found.")
