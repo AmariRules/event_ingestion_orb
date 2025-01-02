@@ -19,15 +19,8 @@ def create_backfill(orb_client, events):
         str: The backfill ID.
     """
     try:
-        if not events:
-            print("No events to backfill.")
-            return None
-
         timeframe_start = min(event["timestamp"] for event in events)
         timeframe_end = (datetime.fromisoformat(timeframe_start.replace("Z", "")) + timedelta(days=9)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        print(f"Creating backfill with timeframe_start: {timeframe_start}, timeframe_end: {timeframe_end}")
-        print(f"Number of events: {len(events)}")
 
         backfill = orb_client.events.backfills.create(
             timeframe_start=timeframe_start,
@@ -37,16 +30,10 @@ def create_backfill(orb_client, events):
         )
         backfill_id = backfill.id
         print(f"Backfill created successfully with ID: {backfill_id}")
-
-        # Log event ingestion details
-        for event in events:
-            print(f"Ingesting event: {event}")
-
         return backfill_id
     except Exception as e:
         print(f"Error creating backfill: {e}")
         return None
-
 
 def create_or_get_customer(orb_client, customer_data, customer_cache):
     """
@@ -143,15 +130,19 @@ def ingest_csv_to_orb(file_path):
                 print(f"Error preparing event {index + 1}: {e}")
 
         if events:
-            print(f"Prepared events: {events[:5]}")  # Log the first 5 events for debugging
+            # Create a backfill for historical events
             backfill_id = create_backfill(orb_client, events)
             if backfill_id:
                 print(f"Backfill created with ID: {backfill_id}")
-            else:
-                print("Failed to create backfill.")
+
+            # Add debug mode for ingestion
+            try:
+                response = orb_client.events.ingest(events=events, debug=True, backfill_id=backfill_id)
+                print(f"Debug response: {response}")
+            except Exception as e:
+                print(f"Error ingesting events: {e}")
         else:
             print("No events were prepared for ingestion.")
-
 
     except FileNotFoundError:
         print(f"Error: The file at {file_path} was not found.")
