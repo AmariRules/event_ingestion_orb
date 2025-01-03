@@ -27,7 +27,7 @@
 Install the required dependencies using `pip`:
 
 ```bash
-pip install python-dotenv pandas orb
+pip install python-dotenv pandas orb-billing
 ```
 
 ### Environment Variables
